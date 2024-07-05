@@ -45,7 +45,7 @@ fn convert_flags(flags: interfaces::InterfaceFlags) -> String {
     format!("{:?}", flags)
 }
 
-fn main() {
+pub fn save_file() {
     let mut sys = System::new_all();
     sys.refresh_all();
 
