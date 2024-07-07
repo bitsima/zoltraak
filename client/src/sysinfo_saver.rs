@@ -1,9 +1,14 @@
 use interfaces::Interface;
-use serde::Serialize;
-use std::{fs::File, io::Write};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    fs::{File, OpenOptions},
+    io::{self, Read, Write},
+};
 use sysinfo::System;
+use uuid::Uuid;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct NetworkAddress {
     kind: String,
     addr: Option<String>,
@@ -11,14 +16,14 @@ struct NetworkAddress {
     hop: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct NetworkInterface {
     name: String,
     addresses: Vec<NetworkAddress>,
     flags: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct SysInfo {
     total_memory: u64,
     used_memory: u64,
@@ -30,6 +35,11 @@ struct SysInfo {
     host_name: String,
     nb_cpus: usize,
     network_interfaces: Vec<NetworkInterface>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct UUID {
+    uuid: Uuid,
 }
 
 fn convert_address(addr: &interfaces::Address) -> NetworkAddress {
@@ -45,7 +55,7 @@ fn convert_flags(flags: interfaces::InterfaceFlags) -> String {
     format!("{:?}", flags)
 }
 
-pub fn save_file() {
+pub fn save_file() -> io::Result<Uuid> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -72,9 +82,38 @@ pub fn save_file() {
         network_interfaces,
     };
 
-    let json_data = serde_json::to_string(&info).expect("Failed to serialize data");
+    let uuid = match File::open("sysinfo.dat") {
+        Ok(mut file) => {
+            let mut contents = String::new();
+            if let Err(_) = file.read_to_string(&mut contents) {
+                UUID {
+                    uuid: Uuid::new_v4(),
+                }
+            } else if let Ok(uuid_part) = serde_json::from_str::<HashMap<String, UUID>>(&contents) {
+                uuid_part.get("uuid").cloned().unwrap_or(UUID {
+                    uuid: Uuid::new_v4(),
+                })
+            } else {
+                UUID {
+                    uuid: Uuid::new_v4(),
+                }
+            }
+        }
+        Err(_) => UUID {
+            uuid: Uuid::new_v4(),
+        },
+    };
 
-    let mut file = File::create("sysinfo.dat").expect("Unable to create file");
-    file.write_all(json_data.as_bytes())
-        .expect("Unable to write data");
+    let uuid_json = serde_json::to_string(&uuid).expect("Failed to serialize UUID");
+    let info_json = serde_json::to_string(&info).expect("Failed to serialize SysInfo");
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("sysinfo.dat")?;
+    file.write_all(uuid_json.as_bytes())?;
+    file.write_all(info_json.as_bytes())?;
+
+    Ok(uuid.uuid)
 }
