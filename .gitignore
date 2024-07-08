@@ -17,3 +17,6 @@ Cargo.lock
 
 # For Python
 .venv/
+.env
+__pycache__/
+db_data/
