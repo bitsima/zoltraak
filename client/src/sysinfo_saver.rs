@@ -1,12 +1,13 @@
 use interfaces::Interface;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     fs::{File, OpenOptions},
     io::{self, Read, Write},
 };
 use sysinfo::System;
 use uuid::Uuid;
+
+const FILENAME: &str = "sysinfo.dat";
 
 #[derive(Serialize, Deserialize)]
 struct NetworkAddress {
@@ -25,6 +26,7 @@ struct NetworkInterface {
 
 #[derive(Serialize, Deserialize)]
 struct SysInfo {
+    uuid: Uuid,
     total_memory: u64,
     used_memory: u64,
     total_swap: u64,
@@ -35,11 +37,6 @@ struct SysInfo {
     host_name: String,
     nb_cpus: usize,
     network_interfaces: Vec<NetworkInterface>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-struct UUID {
-    uuid: Uuid,
 }
 
 fn convert_address(addr: &interfaces::Address) -> NetworkAddress {
@@ -53,6 +50,22 @@ fn convert_address(addr: &interfaces::Address) -> NetworkAddress {
 
 fn convert_flags(flags: interfaces::InterfaceFlags) -> String {
     format!("{:?}", flags)
+}
+
+fn check_uuid(filename: &str) -> Uuid {
+    return match File::open(filename) {
+        Ok(mut file) => {
+            let mut contents = String::new();
+            if let Err(_) = file.read_to_string(&mut contents) {
+                return Uuid::new_v4();
+            }
+            if let Ok(system_info) = serde_json::from_str::<SysInfo>(&contents) {
+                return system_info.uuid;
+            }
+            Uuid::new_v4()
+        }
+        Err(_) => Uuid::new_v4(),
+    };
 }
 
 pub fn save_file() -> io::Result<Uuid> {
@@ -70,6 +83,7 @@ pub fn save_file() -> io::Result<Uuid> {
         .collect();
 
     let info = SysInfo {
+        uuid: check_uuid(FILENAME),
         total_memory: sys.total_memory(),
         used_memory: sys.used_memory(),
         total_swap: sys.total_swap(),
@@ -82,38 +96,14 @@ pub fn save_file() -> io::Result<Uuid> {
         network_interfaces,
     };
 
-    let uuid = match File::open("sysinfo.dat") {
-        Ok(mut file) => {
-            let mut contents = String::new();
-            if let Err(_) = file.read_to_string(&mut contents) {
-                UUID {
-                    uuid: Uuid::new_v4(),
-                }
-            } else if let Ok(uuid_part) = serde_json::from_str::<HashMap<String, UUID>>(&contents) {
-                uuid_part.get("uuid").cloned().unwrap_or(UUID {
-                    uuid: Uuid::new_v4(),
-                })
-            } else {
-                UUID {
-                    uuid: Uuid::new_v4(),
-                }
-            }
-        }
-        Err(_) => UUID {
-            uuid: Uuid::new_v4(),
-        },
-    };
-
-    let uuid_json = serde_json::to_string(&uuid).expect("Failed to serialize UUID");
     let info_json = serde_json::to_string(&info).expect("Failed to serialize SysInfo");
 
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open("sysinfo.dat")?;
-    file.write_all(uuid_json.as_bytes())?;
+        .open(FILENAME)?;
     file.write_all(info_json.as_bytes())?;
 
-    Ok(uuid.uuid)
+    Ok(info.uuid)
 }
