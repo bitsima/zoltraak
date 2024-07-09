@@ -28,7 +28,7 @@ struct NetworkInterface {
 #[derive(Serialize, Deserialize)]
 struct SysInfo {
     uuid: Uuid,
-    mac_address_str: String,
+    mac_address: String,
     total_memory: u64,
     used_memory: u64,
     total_swap: u64,
@@ -70,7 +70,7 @@ fn check_uuid(filename: &str) -> Uuid {
     };
 }
 
-pub fn save_file() -> io::Result<Uuid> {
+pub fn save_file() -> io::Result<(Uuid, String)> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -84,14 +84,14 @@ pub fn save_file() -> io::Result<Uuid> {
         })
         .collect();
 
-    let mac_address = get_mac_address().expect("Couldn't get mac address");
-    let mac_address_str = mac_address
+    let mac_address_opt = get_mac_address().expect("Couldn't get mac address");
+    let mac_address = mac_address_opt
         .map(|addr| addr.to_string())
         .unwrap_or_else(|| "No MAC address found".to_string());
 
     let info = SysInfo {
         uuid: check_uuid(FILENAME),
-        mac_address_str,
+        mac_address: mac_address.clone(),
         total_memory: sys.total_memory(),
         used_memory: sys.used_memory(),
         total_swap: sys.total_swap(),
@@ -113,5 +113,5 @@ pub fn save_file() -> io::Result<Uuid> {
         .open(FILENAME)?;
     file.write_all(info_json.as_bytes())?;
 
-    Ok(info.uuid)
+    Ok((info.uuid, mac_address))
 }

