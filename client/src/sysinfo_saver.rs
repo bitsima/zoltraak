@@ -1,4 +1,5 @@
 use interfaces::Interface;
+use mac_address::get_mac_address;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{File, OpenOptions},
@@ -27,6 +28,7 @@ struct NetworkInterface {
 #[derive(Serialize, Deserialize)]
 struct SysInfo {
     uuid: Uuid,
+    mac_address_str: String,
     total_memory: u64,
     used_memory: u64,
     total_swap: u64,
@@ -82,8 +84,14 @@ pub fn save_file() -> io::Result<Uuid> {
         })
         .collect();
 
+    let mac_address = get_mac_address().expect("Couldn't get mac address");
+    let mac_address_str = mac_address
+        .map(|addr| addr.to_string())
+        .unwrap_or_else(|| "No MAC address found".to_string());
+
     let info = SysInfo {
         uuid: check_uuid(FILENAME),
+        mac_address_str,
         total_memory: sys.total_memory(),
         used_memory: sys.used_memory(),
         total_swap: sys.total_swap(),
