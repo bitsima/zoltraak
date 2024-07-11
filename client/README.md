@@ -1,6 +1,6 @@
 # Implant for C2 Infrastructure
 
-This project is part of a Command and Control (C2) infrastructure. The implant written in Rust is responsible for gathering system information (i.e. ), generating unique identifiers, and sending periodic beacons to the C2 server. The implant also receives and executes commands from the server.
+This project is part of a Command and Control (C2) infrastructure. The implant written in Rust is responsible for gathering system information, generating unique identifiers, and sending periodic beacons to the C2 server. The implant also receives and executes commands from the server.
 
 ## Features
 
