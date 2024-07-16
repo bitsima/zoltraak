@@ -33,6 +33,12 @@ fn gather_system_info() -> Result<SysInfo, Box<dyn std::error::Error>> {
         .map(|addr| addr.to_string())
         .unwrap_or_else(|| "No MAC address found".to_string());
 
+    let processes_list = sys
+        .processes()
+        .iter()
+        .map(|(_, process)| process.name().to_string())
+        .collect();
+
     Ok(SysInfo {
         uuid: check_uuid(FILENAME),
         mac_address: mac_address.clone(),
@@ -46,6 +52,7 @@ fn gather_system_info() -> Result<SysInfo, Box<dyn std::error::Error>> {
         host_name: System::host_name().unwrap_or_default(),
         nb_cpus: sys.cpus().len(),
         network_interfaces,
+        running_processes: processes_list,
     })
 }
 
@@ -102,4 +109,5 @@ pub struct SysInfo {
     host_name: String,
     nb_cpus: usize,
     network_interfaces: Vec<NetworkInterface>,
+    running_processes: Vec<String>,
 }
