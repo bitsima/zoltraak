@@ -17,7 +17,7 @@ async fn main() {
     let (uuid, mac_addr) = sysinfo::saver::save_file().expect("Error saving file");
 
     // Send given file in random sized chunks
-    if let Err(e) = commands::send_file::send_file(sysinfo_path, FILE_URL).await {
+    if let Err(e) = commands::send_file::send_file(uuid, sysinfo_path, FILE_URL).await {
         eprintln!("Error sending file: {}", e);
     }
 

