@@ -2,7 +2,7 @@ use crate::sysinfo::uuid::check_uuid;
 use interfaces::Interface;
 use mac_address::get_mac_address;
 use serde::{Deserialize, Serialize};
-use std::{fs::OpenOptions, io::Write};
+use std::{fs, io::Write, path::Path};
 use sysinfo::System;
 use uuid::Uuid;
 
@@ -51,6 +51,7 @@ fn gather_system_info() -> Result<SysInfo, Box<dyn std::error::Error>> {
         os_version: System::os_version().unwrap_or_default(),
         host_name: System::host_name().unwrap_or_default(),
         nb_cpus: sys.cpus().len(),
+        writable_directories: find_writable_dirs(),
         network_interfaces,
         running_processes: processes_list,
     })
@@ -58,7 +59,7 @@ fn gather_system_info() -> Result<SysInfo, Box<dyn std::error::Error>> {
 
 fn save_info_to_file(info: &SysInfo) -> Result<(), Box<dyn std::error::Error>> {
     let info_json = serde_json::to_string(info)?;
-    let mut file = OpenOptions::new()
+    let mut file = fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
@@ -78,6 +79,23 @@ fn convert_address(addr: &interfaces::Address) -> NetworkAddress {
 
 fn convert_flags(flags: interfaces::InterfaceFlags) -> String {
     format!("{:?}", flags)
+}
+
+fn find_writable_dirs() -> Vec<String> {
+    let mut writable_dirs = Vec::new();
+    let directories = vec!["/tmp", "/var/tmp", "/home"];
+
+    for dir in directories {
+        if Path::new(dir).is_dir() {
+            if let Ok(metadata) = fs::metadata(dir) {
+                if metadata.permissions().readonly() == false {
+                    writable_dirs.push(dir.to_string());
+                }
+            }
+        }
+    }
+
+    writable_dirs
 }
 
 #[derive(Serialize, Deserialize)]
@@ -108,6 +126,7 @@ pub struct SysInfo {
     os_version: String,
     host_name: String,
     nb_cpus: usize,
+    writable_directories: Vec<String>,
     network_interfaces: Vec<NetworkInterface>,
     running_processes: Vec<String>,
 }
