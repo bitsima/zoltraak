@@ -1,6 +1,8 @@
 from app.database import db
 from app.database.models import CommandQueue
+from app.database.models import FileChunk
 
+import base64
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -73,3 +75,27 @@ def get_commands_for_uuid(implant_uuid):
     if not command_queue:
         return None
     return command_queue.commands
+
+
+def save_file_chunk(implant_uuid, file_id, chunk_index, chunk_data):
+    chunk = FileChunk(
+        implant_uuid=implant_uuid,
+        file_id=file_id,
+        chunk_index=chunk_index,
+        chunk_data=base64.b64decode(chunk_data),
+    )
+    db.session.add(chunk)
+    db.session.commit()
+
+    logging.info(f"Saved chunk {chunk_index} of file {file_id} from {implant_uuid}.")
+
+
+def assemble_file(file_id):
+    chunks = (
+        FileChunk.query.filter_by(file_id=file_id).order_by(FileChunk.chunk_index).all()
+    )
+    if not chunks:
+        return None, False
+
+    file_data = b"".join([chunk.chunk_data for chunk in chunks])
+    return file_data, True

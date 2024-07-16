@@ -10,7 +10,7 @@ def create_app(config_class="config.Config"):
     migrate.init_app(app, db)
 
     with app.app_context():
-        from app.api.routes import bp as routes_bp
+        from app.api.routes import BP as routes_bp
 
         app.register_blueprint(routes_bp)
         db.create_all()
