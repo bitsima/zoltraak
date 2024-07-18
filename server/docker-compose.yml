@@ -18,7 +18,7 @@ services:
 
   web:
     build: .
-    command: python run.py
+    command: python3.12 run.py
     volumes:
       - .:/app
     ports:
