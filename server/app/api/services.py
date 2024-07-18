@@ -4,6 +4,7 @@ from app.database.models import FileChunk
 
 import base64
 import logging
+import magic
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -95,7 +96,24 @@ def assemble_file(file_id):
         FileChunk.query.filter_by(file_id=file_id).order_by(FileChunk.chunk_index).all()
     )
     if not chunks:
-        return None, False
+        return None, None
 
     file_data = b"".join([chunk.chunk_data for chunk in chunks])
-    return file_data, True
+    encoded_file = base64.b64encode(file_data).decode("utf-8")
+
+    file_type = magic.from_buffer(file_data)
+    return encoded_file, file_type
+
+
+def get_file_ids():
+    file_chunks = (
+        db.session.query(FileChunk.implant_uuid, FileChunk.file_id).distinct().all()
+    )
+
+    file_ids_by_implant = dict()
+    for implant_uuid, file_id in file_chunks:
+        if implant_uuid not in file_ids_by_implant:
+            file_ids_by_implant[implant_uuid] = []
+        file_ids_by_implant[implant_uuid].append(file_id)
+
+    return file_ids_by_implant
