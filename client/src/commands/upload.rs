@@ -41,21 +41,16 @@ pub async fn send_file(
                         "chunk_data": &encoded_chunk,
                     }))
                     .send()
-                    .await;
+                    .await
+                    .unwrap();
 
-                match response {
-                    Ok(response) => {
-                        if !response.status().is_success() {
-                            eprintln!(
-                                "Failed to send chunk {}, status: {}",
-                                chunk_index,
-                                response.status()
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Error sending chunk {}: {}", chunk_index, e);
-                    }
+                if !response.status().is_success() {
+                    eprintln!(
+                        "Failed to send chunk {}, status: {}",
+                        chunk_index,
+                        response.status()
+                    );
+                    break;
                 }
 
                 chunk_index += 1;

