@@ -11,31 +11,33 @@ pub async fn execute_command(
     cmd: &str,
     upload_url: &str,
     download_url: &str,
-) -> Result<(), String> {
+) -> Result<String, Box<dyn std::error::Error>> {
     let cmd_parts = cmd.split_ascii_whitespace().collect::<Vec<&str>>();
     let cmd_type = cmd_parts.first().unwrap_or(&"");
+    let mut output = String::new();
 
     match *cmd_type {
-        "shell" => execute_shell_command(cmd_parts)?,
+        "shell" => output = execute_shell_command(cmd_parts)?,
         // upload <file_name>(optional)
-        "upload" => execute_upload_command(uuid, cmd_parts, upload_url).await?,
+        "upload" => output = execute_upload_command(uuid, cmd_parts, upload_url).await?,
         // download <file_id> <file_save_path>
-        "download" => execute_download_command(uuid, cmd_parts, download_url).await?,
+        "download" => output = execute_download_command(uuid, cmd_parts, download_url).await?,
         // "kill" => execute_kill_command(cmd_parts),
         // "start" => execute_start_command(cmd_parts),
         // "restart" => execute_restart_command(cmd_parts),
         _ => {
             println!("Unsupported command type: {}", cmd_type);
-            return Err(format!("Unsupported command type: {}", cmd_type))?;
+            return Err(format!("Unsupported command type: {}", cmd_type).into());
         }
     }
-    Ok(())
+
+    Ok(output)
 }
 
-fn execute_shell_command(cmd_parts: Vec<&str>) -> Result<(), String> {
+fn execute_shell_command(cmd_parts: Vec<&str>) -> Result<String, Box<dyn std::error::Error>> {
     if cmd_parts.len() <= 1 {
         println!("Could not execute shell command.");
-        return Err(format!("Wrong number of parameters provided"));
+        return Err(format!("Wrong number of parameters provided").into());
     }
 
     let shell_command = &cmd_parts[1..].join(" ");
@@ -49,36 +51,43 @@ fn execute_shell_command(cmd_parts: Vec<&str>) -> Result<(), String> {
     if output.status.success() {
         let output_str = String::from_utf8_lossy(&output.stdout);
         println!("Command output: {}", output_str);
-        Ok(())
+        Ok(output_str.to_string())
     } else {
         let error_str = String::from_utf8_lossy(&output.stderr);
         println!("Command failed with error: {}", error_str);
-        Err(error_str.to_string())
+        Ok(error_str.into())
     }
 }
 
 /**
  * Function to execute "upload" commands, will upload the default sysinfo file if the file name is not provided
  */
-async fn execute_upload_command(uuid: Uuid, cmd: Vec<&str>, file_url: &str) -> Result<(), String> {
+async fn execute_upload_command(
+    uuid: Uuid,
+    cmd: Vec<&str>,
+    file_url: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     println!("Executing upload command: {}", cmd.join(" "));
+    let mut file_to_send = String::new();
+
     if cmd.len() == 1 {
         // default file is sent
-        if let Err(e) = upload::send_file(uuid, Path::new(DEFAULT_SYSINFO_FILE), file_url).await {
-            eprintln!("Error sending file: {}", e);
-            return Err(e.to_string());
-        }
+        file_to_send = DEFAULT_SYSINFO_FILE.to_string();
     } else if cmd.len() == 2 {
         // given file is sent
-        if let Err(e) = upload::send_file(uuid, Path::new(cmd.get(1).unwrap()), file_url).await {
-            eprintln!("Error sending file: {}", e);
-            return Err(e.to_string());
-        }
+        file_to_send = cmd.get(1).unwrap().to_string();
     } else {
         println!("Could not execute upload command.");
-        return Err(format!("Wrong number of parameters provided"));
+        return Err(format!("Wrong number of parameters provided").into());
     }
-    Ok(())
+    if let Err(e) = upload::send_file(uuid, Path::new(&file_to_send), file_url).await {
+        eprintln!("Error sending file: {}", e);
+        return Err(e);
+    }
+    Ok(format!(
+        "File '{}' was uploaded to the server.",
+        file_to_send
+    ))
 }
 /**
  * Function to execute "download" commands, file id and save path needs to be provided to the download command
@@ -87,40 +96,44 @@ async fn execute_download_command(
     uuid: Uuid,
     cmd: Vec<&str>,
     download_url: &str,
-) -> Result<(), String> {
+) -> Result<String, Box<dyn std::error::Error>> {
     println!("Executing download command: {}", cmd.join(" "));
 
     if cmd.len() != 3 {
         println!("Could not execute download command.");
-        return Err(format!("Wrong number of parameters provided"));
+        return Err(format!("Wrong number of parameters provided").into());
     }
     let file_id = cmd.get(1).unwrap();
     let save_path = cmd.get(2).unwrap();
 
-    if let Err(e) = download::receive_file(uuid, file_id, Path::new(save_path), download_url).await {
+    if let Err(e) = download::receive_file(uuid, file_id, Path::new(save_path), download_url).await
+    {
         eprintln!("Error receiving file: {}", e);
-        return Err(e.to_string());
+        return Err(e);
     }
-    Ok(())
+    Ok(format!(
+        "File with name '{}' was saved to '{}'.",
+        file_id, save_path
+    ))
 }
 
-fn execute_kill_command(cmd: &str) -> Result<(), String> {
+fn execute_kill_command(cmd: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Implement kill logic here
     println!("Executing kill command: {}", cmd);
     // Example: Terminate a process or service
-    Ok(())
+    Ok("some string".to_string())
 }
 
-fn execute_start_command(cmd: &str) -> Result<(), String> {
+fn execute_start_command(cmd: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Implement start logic here
     println!("Executing start command: {}", cmd);
     // Example: Start a process or service
-    Ok(())
+    Ok("some string".to_string())
 }
 
-fn execute_restart_command(cmd: &str) -> Result<(), String> {
+fn execute_restart_command(cmd: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Implement restart logic here
     println!("Executing restart command: {}", cmd);
     // Example: Restart a process or service
-    Ok(())
+    Ok("some string".to_string())
 }
