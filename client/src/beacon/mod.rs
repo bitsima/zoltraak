@@ -1,1 +1,1 @@
-pub mod sender;
+pub mod beacon;
