@@ -47,7 +47,7 @@ def add_command_to_queue(implant_uuid, command_text):
     if not command_queue:
         return False
 
-    logging.info(
+    logging.debug(
         f"Before adding: Current commands for {implant_uuid}: {command_queue.commands}"
     )
 
@@ -63,7 +63,7 @@ def add_command_to_queue(implant_uuid, command_text):
     db.session.flush()
     db.session.commit()
 
-    logging.info(
+    logging.debug(
         f"After adding: New commands for {implant_uuid}: {command_queue.commands}"
     )
 
