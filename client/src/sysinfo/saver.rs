@@ -98,6 +98,13 @@ fn find_writable_dirs() -> Vec<String> {
     writable_dirs
 }
 
+pub fn get_pids_by_name(process_name: &str) -> Vec<i32> {
+    let sys = System::new_all();
+    sys.processes_by_name(process_name)
+        .map(|process| process.pid().as_u32() as i32)
+        .collect()
+}
+
 #[derive(Serialize, Deserialize)]
 struct NetworkAddress {
     kind: String,
