@@ -21,5 +21,8 @@ Cargo.lock
 __pycache__/
 db_data/
 
+.htpasswd
+
+*.mp4
 
 .vscode/
