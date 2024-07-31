@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y \
     python3.12 \
     python3-pip \
     libmagic1 \
+    postgresql-client \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -14,4 +15,9 @@ RUN pip3 install -r requirements.txt --break-system-packages
 
 COPY . .
 
-CMD ["python3.12", "run.py"]
+# Copy the wait-for script
+COPY wait-for.sh /usr/local/bin/wait-for.sh
+RUN chmod +x /usr/local/bin/wait-for.sh
+
+# Command to run the application
+ENTRYPOINT ["wait-for.sh", "python3.12", "run.py"]
