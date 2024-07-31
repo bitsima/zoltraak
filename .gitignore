@@ -26,3 +26,4 @@ db_data/
 *.mp4
 
 .vscode/
+*.pem
