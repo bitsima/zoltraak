@@ -54,7 +54,7 @@ def get_commands(uuid):
     return jsonify(commands), 200
 
 
-# endpoint for the implant that receives chunks
+# endpoint for the implant, this endpoint receives chunks
 @BP.route("/files", methods=["POST"])
 def post_file():
     data = request.get_json()
@@ -93,6 +93,7 @@ def get_files():
     return jsonify(file_ids), 200
 
 
+# this endpoint is used by the implant to receive files
 @BP.route("/send_file", methods=["POST"])
 def send_file():
     data = request.get_json()
