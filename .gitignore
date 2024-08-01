@@ -27,3 +27,8 @@ db_data/
 
 .vscode/
 *.pem
+*.csr
+*.srl
+*.key
+*.crt
+*.ext
