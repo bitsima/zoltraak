@@ -44,10 +44,11 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./.htpasswd:/etc/nginx/.htpasswd
+      - ./app/config/certificates:/etc/nginx/certificates:ro
+
     networks:
       - server_network
 
