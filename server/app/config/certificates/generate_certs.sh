@@ -8,28 +8,30 @@ fi
 
 SERVER_CN=$1
 
-# Generate the CA private key
-openssl genpkey -algorithm RSA -out ca-key.pem -pkeyopt rsa_keygen_bits:2048
+# Generate a self-signed root CA private 
+openssl req -x509 -sha256 -nodes -subj "/C=US/CN=MyCA" -days 1825 -newkey rsa:2048 -keyout rootCA.key -out rootCA.crt ######
 
-# Generate the CA certificate
-openssl req -x509 -new -nodes -key ca-key.pem -sha256 -days 1024 -out ca-crt.pem -subj "/CN=MyCA"
+# Generate the server private key and CSR
+openssl req -newkey rsa:2048 -nodes -subj "/C=US/CN=$SERVER_CN" -keyout server-key.pem -out server-key.csr ###########
 
-# Generate the server private key
-openssl genpkey -algorithm RSA -out server-key.pem -pkeyopt rsa_keygen_bits:2048
+# Generate the client private key and CSR
+openssl req -newkey rsa:2048 -nodes -subj "/C=US/CN=client" -keyout client-key.pem -out client-key.csr ###########
 
-# Generate the server CSR
-openssl req -new -key server-key.pem -out server-csr.pem -subj "/CN=$SERVER_CN"
+# Create file localhost.ext with the following content:
+cat << EOF >> localhost.ext
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+subjectAltName = @alt_names
+[alt_names]
+DNS.1 = server
+IP.1 = $SERVER_CN
+EOF
 
-# Generate the server certificate
-openssl x509 -req -in server-csr.pem -CA ca-crt.pem -CAkey ca-key.pem -CAcreateserial -out server-crt.pem -days 1024 -sha256
+# Sign the client CSR (`cert.pem`) with the root CA certificate and private key
+# => this overwrites `cert.pem` because it gets signed
+openssl x509 -req -CA rootCA.crt -CAkey rootCA.key -in client-key.csr -out client-crt.pem -days 365 -CAcreateserial -extfile localhost.ext
 
-# Generate the client private key
-openssl genpkey -algorithm RSA -out client-key.pem -pkeyopt rsa_keygen_bits:2048
-
-# Generate the client CSR
-openssl req -new -key client-key.pem -out client-csr.pem -subj "/CN=Client"
-
-# Generate the client certificate
-openssl x509 -req -in client-csr.pem -CA ca-crt.pem -CAkey ca-key.pem -CAcreateserial -out client-crt.pem -days 1024 -sha256
+# Sign the server CSR
+openssl x509 -req -CA rootCA.crt -CAkey rootCA.key -in server-key.csr -out server-crt.pem -days 365 -CAcreateserial -extfile localhost.ext
 
 echo "Certificates generated successfully."
